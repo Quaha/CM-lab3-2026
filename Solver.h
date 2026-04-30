@@ -1,6 +1,15 @@
-// Solver.h — численное ядро (чистый нативный C++).
-// Вариант 1, метод баланса (Тихонов–Самарский) + прогонка.
+﻿// Solver.h — численное ядро (чистый нативный C++).
+// Вариант 1, метод баланса (Тихонов–Самарский).
+//
+// Граничные условия:
+//   FirstType  — 1-го рода (Дирихле):    u = γ
+//   SecondType — 2-го рода (Нейман):     слева  −k(0)·u'(0) = γ
+//                                        справа  k(1)·u'(1) = γ
+//   ThirdType  — 3-го рода (Робин):      слева  −k(0)·u'(0) + σ·u(0) = γ
+//                                        справа  k(1)·u'(1) + σ·u(1) = γ
 #pragma once
+
+#include "Progonka.h"
 
 #include <vector>
 #include <cmath>
@@ -8,13 +17,17 @@
 #include <stdexcept>
 #include <algorithm>
 
-namespace Numerics {
+namespace BalanceSolver {
 
-enum class BCType { Dirichlet = 0, Neumann = 1, Robin = 2 };
+enum class BCType {
+    FirstType  = 0,   // 1-го рода (Дирихле)
+    SecondType = 1,   // 2-го рода (Нейман)
+    ThirdType  = 2    // 3-го рода (Робин)
+};
 
 struct BoundaryCondition {
-    BCType type = BCType::Dirichlet;
-    double sigma = 0.0; // для Робина
+    BCType type = BCType::FirstType;
+    double sigma = 0.0; // используется только для 3-го рода
     double gamma = 0.0;
 };
 
@@ -171,25 +184,26 @@ inline AnalyticalSolution analytical_test_solution(
     double b[4] = {0};
 
     // Стр. 0: левое ГУ при x=0.  u(0) = A1 + p1,  u'(0) = lam1*B1.
-    if (bcL.type == BCType::Dirichlet) {
-        // u(0) = γ_L  =>  A1 = γ_L − p1
+    if (bcL.type == BCType::FirstType) {
+        // 1-й род:  u(0) = γ  =>  A1 = γ − p1
         M[0][0] = 1.0;
         b[0] = bcL.gamma - sol.p1;
     } else {
-        // -k1* u'(0) + σ u(0) = γ  =>  σ A1 − k1* λ1 B1 = γ − σ p1
-        double sg = (bcL.type == BCType::Robin) ? bcL.sigma : 0.0;
+        // 2-й или 3-й род:  −k1* u'(0) + σ u(0) = γ  =>  σ A1 − k1* λ1 B1 = γ − σ p1
+        // Для 2-го рода σ = 0.
+        double sg = (bcL.type == BCType::ThirdType) ? bcL.sigma : 0.0;
         M[0][0] = sg;
         M[0][1] = -k1s * sol.lam1;
         b[0] = bcL.gamma - sg * sol.p1;
     }
 
     // Стр. 1: правое ГУ при x=1.  u(1) = A2 + p2,  u'(1) = lam2*B2.
-    if (bcR.type == BCType::Dirichlet) {
+    if (bcR.type == BCType::FirstType) {
         M[1][2] = 1.0;
         b[1] = bcR.gamma - sol.p2;
     } else {
         // k2* u'(1) + σ u(1) = γ  =>  σ A2 + k2* λ2 B2 = γ − σ p2
-        double sg = (bcR.type == BCType::Robin) ? bcR.sigma : 0.0;
+        double sg = (bcR.type == BCType::ThirdType) ? bcR.sigma : 0.0;
         M[1][2] = sg;
         M[1][3] = k2s * sol.lam2;
         b[1] = bcR.gamma - sg * sol.p2;
@@ -213,32 +227,6 @@ inline AnalyticalSolution analytical_test_solution(
     auto x = solve4x4(M, b);
     sol.A1 = x[0]; sol.B1 = x[1]; sol.A2 = x[2]; sol.B2 = x[3];
     return sol;
-}
-
-// =====================  ПРОГОНКА  =====================
-// Система: A[i] v[i-1] − C[i] v[i] + B[i] v[i+1] = −F[i]
-//          A[0] = 0,  B[N-1] = 0
-inline std::vector<double> thomas(
-    const std::vector<double>& A,
-    const std::vector<double>& C,
-    const std::vector<double>& B,
-    const std::vector<double>& F)
-{
-    int N = (int)A.size();
-    std::vector<double> alpha(N), beta(N), v(N);
-    // Прямой ход: v[i] = alpha[i]*v[i+1] + beta[i]
-    alpha[0] = B[0] / C[0];
-    beta[0]  = F[0] / C[0];
-    for (int i = 1; i < N - 1; ++i) {
-        double denom = C[i] - A[i] * alpha[i-1];
-        alpha[i] = B[i] / denom;
-        beta[i]  = (F[i] + A[i] * beta[i-1]) / denom;
-    }
-    int last = N - 1;
-    v[last] = (F[last] + A[last] * beta[last-1]) / (C[last] - A[last] * alpha[last-1]);
-    for (int i = last - 1; i >= 0; --i)
-        v[i] = alpha[i] * v[i+1] + beta[i];
-    return v;
 }
 
 // =====================  МЕТОД БАЛАНСА  =====================
@@ -274,7 +262,7 @@ inline std::vector<double> solve_bvp(
     }
 
     // Левое граничное условие
-    if (bcL.type == BCType::Dirichlet) {
+    if (bcL.type == BCType::FirstType) {
         A[0] = 0; B[0] = 0; C[0] = 1.0; F[0] = bcL.gamma;
     } else {
         // Интегрирование уравнения по [0, h/2]:
@@ -283,7 +271,7 @@ inline std::vector<double> solve_bvp(
         //   C0 = a1/h + σ + dT,   B0 = a1/h,   F0 = γ + φT
         double dT = p.q.integral(0.0, h/2.0);
         double fT = p.f.integral(0.0, h/2.0);
-        double sg = (bcL.type == BCType::Robin) ? bcL.sigma : 0.0;
+        double sg = (bcL.type == BCType::ThirdType) ? bcL.sigma : 0.0;
         A[0] = 0;
         B[0] = a[1] / h;
         C[0] = a[1] / h + sg + dT;
@@ -291,19 +279,19 @@ inline std::vector<double> solve_bvp(
     }
 
     // Правое граничное условие
-    if (bcR.type == BCType::Dirichlet) {
+    if (bcR.type == BCType::FirstType) {
         A[n] = 0; B[n] = 0; C[n] = 1.0; F[n] = bcR.gamma;
     } else {
         double dT = p.q.integral(1.0 - h/2.0, 1.0);
         double fT = p.f.integral(1.0 - h/2.0, 1.0);
-        double sg = (bcR.type == BCType::Robin) ? bcR.sigma : 0.0;
+        double sg = (bcR.type == BCType::ThirdType) ? bcR.sigma : 0.0;
         A[n] = a[n] / h;
         B[n] = 0;
         C[n] = a[n] / h + sg + dT;
         F[n] = bcR.gamma + fT;
     }
 
-    return thomas(A, C, B, F);
+    return progonka(A, C, B, F);
 }
 
-} // namespace Numerics
+} // namespace BalanceSolver
