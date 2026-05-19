@@ -1,0 +1,29 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+
+# Build artifacts
+*.obj
+*.pdb
+*.ipch
+*.tlog
+*.log
+*.exe.recipe
+*.lastbuildstate
+*.FileListAbsolute.txt
+
+# Precompiled headers
+*.pch
+*.ipdb
+*.iobj

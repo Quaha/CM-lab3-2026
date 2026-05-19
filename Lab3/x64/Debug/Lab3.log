@@ -3,4 +3,4 @@
   .NETFramework,Version=v4.8.AssemblyAttributes.cpp
   Создание кода...
   App.obj : обнаружен модуль MSIL; для MSIL последовательная компоновка отключена; выполняется полная компоновка
-  Lab3.vcxproj -> C:\Users\Артем\Desktop\Новая папка\CM-lab3-2026\x64\Debug\Lab3.exe
+  Lab3.vcxproj -> E:\Dev\MyC++Projects\CM-lab3-2026\x64\Debug\Lab3.exe
