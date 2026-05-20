@@ -1,7 +1,10 @@
 ﻿#pragma once
 #pragma execution_character_set("utf-8")
 
-#include "Solver.h"
+// Примечание: нативный заголовок Solver.h сюда НЕ включается намеренно —
+// это держит файл формы «чистым» CLI-кодом. Численное ядро подключается
+// только в MyForm.cpp. Helper-методы ниже возвращают int-коды, которые
+// в MyForm.cpp преобразуются в перечисления BalanceSolver.
 
 namespace Lab3 {
 
@@ -13,7 +16,21 @@ namespace Lab3 {
     using namespace System::Windows::Forms::DataVisualization::Charting;
 
     /// <summary>
-    /// Главная форма приложения "Метод баланса".
+    /// Главная форма приложения. Лабораторная работа 3, метод баланса, вариант 7.
+    ///
+    /// Три селектора:
+    ///   – Постановка задачи: 1-я краевая / 3-я краевая
+    ///   – Тип задачи:        тестовая  / основная
+    ///   – Схема ГУ:          классическая / улучшенная (только для 3-й краевой)
+    ///
+    /// Три действия:
+    ///   – «Решить»                 — рассчитать выбранную конфигурацию,
+    ///                                 показать справку, графики, таблицу.
+    ///   – «Проверка порядка»       — рассчитать сетки n = 10..320 и оценить
+    ///                                 порядок сходимости (таблицы 4 и 5
+    ///                                 бланка отчёта).
+    ///   – «Широкий диапазон n»     — заполнить таблицу 6 (n = 10..1 000 000)
+    ///                                 для построения графиков сходимости.
     /// </summary>
     public ref class MyForm : public System::Windows::Forms::Form
     {
@@ -21,626 +38,435 @@ namespace Lab3 {
         MyForm(void)
         {
             InitializeComponent();
-            // Изначально σ-поля скрыты (Дирихле выбран по умолчанию)
-            lblSigmaL->Visible = false; txtSigmaL->Visible = false;
-            lblSigmaR->Visible = false; txtSigmaR->Visible = false;
+
+            // По умолчанию выбрана 1-я краевая — селектор схемы недоступен,
+            // поскольку 1-я краевая задаёт u в граничных узлах точно.
+            UpdateSchemeEnabled();
         }
 
     protected:
-        ~MyForm()
-        {
-            if (components) { delete components; }
-        }
+        ~MyForm() { if (components) delete components; }
 
-    // ===== Поля контролов (видны дизайнеру) =====
-    private: System::ComponentModel::IContainer^ components;
+    private:
+        System::ComponentModel::IContainer^ components;
 
-    private: System::Windows::Forms::Panel^ panelTop;
-    private: System::Windows::Forms::Label^ lblN;
-    private: System::Windows::Forms::NumericUpDown^ numN;
-    private: System::Windows::Forms::Label^ lblVar;
+        // ---- Верхняя панель ----
+        System::Windows::Forms::Panel^         panelTop;
+        System::Windows::Forms::Label^         lblTitle;
+        System::Windows::Forms::Label^         lblVariant;
 
-    private: System::Windows::Forms::GroupBox^ grpL;
-    private: System::Windows::Forms::Label^ lblTL;
-    private: System::Windows::Forms::ComboBox^ cmbBcL;
-    private: System::Windows::Forms::Label^ lblGammaL;
-    private: System::Windows::Forms::TextBox^ txtGammaL;
-    private: System::Windows::Forms::Label^ lblSigmaL;
-    private: System::Windows::Forms::TextBox^ txtSigmaL;
+        System::Windows::Forms::Label^         lblN;
+        System::Windows::Forms::NumericUpDown^ numN;
 
-    private: System::Windows::Forms::GroupBox^ grpR;
-    private: System::Windows::Forms::Label^ lblTR;
-    private: System::Windows::Forms::ComboBox^ cmbBcR;
-    private: System::Windows::Forms::Label^ lblGammaR;
-    private: System::Windows::Forms::TextBox^ txtGammaR;
-    private: System::Windows::Forms::Label^ lblSigmaR;
-    private: System::Windows::Forms::TextBox^ txtSigmaR;
+        System::Windows::Forms::GroupBox^      grpKind;
+        System::Windows::Forms::RadioButton^   rbKindFirst;
+        System::Windows::Forms::RadioButton^   rbKindThird;
 
-    private: System::Windows::Forms::Button^ btnSolveTest;
-    private: System::Windows::Forms::Button^ btnSolveMain;
-    private: System::Windows::Forms::Button^ btnConv;
-    private: System::Windows::Forms::Button^ btnWide;
+        System::Windows::Forms::GroupBox^      grpType;
+        System::Windows::Forms::RadioButton^   rbTypeTest;
+        System::Windows::Forms::RadioButton^   rbTypeMain;
 
-    private: System::Windows::Forms::TabControl^ tabs;
+        System::Windows::Forms::GroupBox^      grpScheme;
+        System::Windows::Forms::RadioButton^   rbSchemeClassical;
+        System::Windows::Forms::RadioButton^   rbSchemeImproved;
 
-    private: System::Windows::Forms::TabPage^ tabTest;
-    private: System::Windows::Forms::SplitContainer^ scTest;
-    private: System::Windows::Forms::Label^ lblTestInfo;
-    private: System::Windows::Forms::SplitContainer^ scTestInner;
-    private: System::Windows::Forms::SplitContainer^ scTestCharts;
-    private: System::Windows::Forms::DataVisualization::Charting::Chart^ chTestSols;
-    private: System::Windows::Forms::DataVisualization::Charting::ChartArea^ caTestSols;
-    private: System::Windows::Forms::DataVisualization::Charting::Title^ tiTestSols;
-    private: System::Windows::Forms::DataVisualization::Charting::Legend^ lgTestSols;
-    private: System::Windows::Forms::DataVisualization::Charting::Chart^ chTestErr;
-    private: System::Windows::Forms::DataVisualization::Charting::ChartArea^ caTestErr;
-    private: System::Windows::Forms::DataVisualization::Charting::Title^ tiTestErr;
-    private: System::Windows::Forms::DataVisualization::Charting::Legend^ lgTestErr;
-    private: System::Windows::Forms::DataGridView^ dgvTest;
+        System::Windows::Forms::Button^        btnSolve;
+        System::Windows::Forms::Button^        btnConv;
+        System::Windows::Forms::Button^        btnWide;
 
-    private: System::Windows::Forms::TabPage^ tabMain;
-    private: System::Windows::Forms::SplitContainer^ scMain;
-    private: System::Windows::Forms::Label^ lblMainInfo;
-    private: System::Windows::Forms::SplitContainer^ scMainInner;
-    private: System::Windows::Forms::SplitContainer^ scMainCharts;
-    private: System::Windows::Forms::DataVisualization::Charting::Chart^ chMainSols;
-    private: System::Windows::Forms::DataVisualization::Charting::ChartArea^ caMainSols;
-    private: System::Windows::Forms::DataVisualization::Charting::Title^ tiMainSols;
-    private: System::Windows::Forms::DataVisualization::Charting::Legend^ lgMainSols;
-    private: System::Windows::Forms::DataVisualization::Charting::Chart^ chMainErr;
-    private: System::Windows::Forms::DataVisualization::Charting::ChartArea^ caMainErr;
-    private: System::Windows::Forms::DataVisualization::Charting::Title^ tiMainErr;
-    private: System::Windows::Forms::DataVisualization::Charting::Legend^ lgMainErr;
-    private: System::Windows::Forms::DataGridView^ dgvMain;
+        // ---- Вкладки ----
+        System::Windows::Forms::TabControl^    tabs;
 
-    private: System::Windows::Forms::TabPage^ tabConv;
-    private: System::Windows::Forms::Label^ lblConvHelp;
-    private: System::Windows::Forms::SplitContainer^ scConv;
-    private: System::Windows::Forms::Label^ lblConvTest;
-    private: System::Windows::Forms::DataGridView^ dgvConvTest;
-    private: System::Windows::Forms::Label^ lblConvMain;
-    private: System::Windows::Forms::DataGridView^ dgvConvMain;
+        // Вкладка «Решение»
+        System::Windows::Forms::TabPage^       tabSolve;
+        System::Windows::Forms::SplitContainer^ scSolve;
+        System::Windows::Forms::Label^         lblInfo;
+        System::Windows::Forms::SplitContainer^ scSolveBody;
+        System::Windows::Forms::SplitContainer^ scCharts;
+        System::Windows::Forms::DataVisualization::Charting::Chart^         chSols;
+        System::Windows::Forms::DataVisualization::Charting::ChartArea^     caSols;
+        System::Windows::Forms::DataVisualization::Charting::Title^         tiSols;
+        System::Windows::Forms::DataVisualization::Charting::Legend^        lgSols;
+        System::Windows::Forms::DataVisualization::Charting::Chart^         chErr;
+        System::Windows::Forms::DataVisualization::Charting::ChartArea^     caErr;
+        System::Windows::Forms::DataVisualization::Charting::Title^         tiErr;
+        System::Windows::Forms::DataVisualization::Charting::Legend^        lgErr;
+        System::Windows::Forms::DataGridView^  dgvSolve;
 
-    private: System::Windows::Forms::TabPage^ tabWide;
-    private: System::Windows::Forms::Label^ lblWideHelp;
-    private: System::Windows::Forms::DataGridView^ dgvWide;
+        // Вкладка «Проверка порядка»
+        System::Windows::Forms::TabPage^       tabConv;
+        System::Windows::Forms::Label^         lblConvHelp;
+        System::Windows::Forms::DataGridView^  dgvConv;
 
-#pragma region Windows Form Designer generated code
+        // Вкладка «Широкий диапазон n»
+        System::Windows::Forms::TabPage^       tabWide;
+        System::Windows::Forms::Label^         lblWideHelp;
+        System::Windows::Forms::DataGridView^  dgvWide;
+
+#pragma region Designer-generated layout
+
         void InitializeComponent(void)
         {
-            this->panelTop = (gcnew System::Windows::Forms::Panel());
-            this->lblN = (gcnew System::Windows::Forms::Label());
-            this->numN = (gcnew System::Windows::Forms::NumericUpDown());
-            this->lblVar = (gcnew System::Windows::Forms::Label());
-            this->grpL = (gcnew System::Windows::Forms::GroupBox());
-            this->lblTL = (gcnew System::Windows::Forms::Label());
-            this->cmbBcL = (gcnew System::Windows::Forms::ComboBox());
-            this->lblGammaL = (gcnew System::Windows::Forms::Label());
-            this->txtGammaL = (gcnew System::Windows::Forms::TextBox());
-            this->lblSigmaL = (gcnew System::Windows::Forms::Label());
-            this->txtSigmaL = (gcnew System::Windows::Forms::TextBox());
-            this->grpR = (gcnew System::Windows::Forms::GroupBox());
-            this->lblTR = (gcnew System::Windows::Forms::Label());
-            this->cmbBcR = (gcnew System::Windows::Forms::ComboBox());
-            this->lblGammaR = (gcnew System::Windows::Forms::Label());
-            this->txtGammaR = (gcnew System::Windows::Forms::TextBox());
-            this->lblSigmaR = (gcnew System::Windows::Forms::Label());
-            this->txtSigmaR = (gcnew System::Windows::Forms::TextBox());
-            this->btnSolveTest = (gcnew System::Windows::Forms::Button());
-            this->btnSolveMain = (gcnew System::Windows::Forms::Button());
-            this->btnConv = (gcnew System::Windows::Forms::Button());
-            this->btnWide = (gcnew System::Windows::Forms::Button());
-            this->tabs = (gcnew System::Windows::Forms::TabControl());
+            this->components         = nullptr;
 
-            this->tabTest = (gcnew System::Windows::Forms::TabPage());
-            this->scTest = (gcnew System::Windows::Forms::SplitContainer());
-            this->lblTestInfo = (gcnew System::Windows::Forms::Label());
-            this->scTestInner = (gcnew System::Windows::Forms::SplitContainer());
-            this->scTestCharts = (gcnew System::Windows::Forms::SplitContainer());
-            this->chTestSols = (gcnew System::Windows::Forms::DataVisualization::Charting::Chart());
-            this->chTestErr  = (gcnew System::Windows::Forms::DataVisualization::Charting::Chart());
-            this->dgvTest = (gcnew System::Windows::Forms::DataGridView());
+            this->panelTop           = gcnew System::Windows::Forms::Panel();
+            this->lblTitle           = gcnew System::Windows::Forms::Label();
+            this->lblVariant         = gcnew System::Windows::Forms::Label();
+            this->lblN               = gcnew System::Windows::Forms::Label();
+            this->numN               = gcnew System::Windows::Forms::NumericUpDown();
+            this->grpKind            = gcnew System::Windows::Forms::GroupBox();
+            this->rbKindFirst        = gcnew System::Windows::Forms::RadioButton();
+            this->rbKindThird        = gcnew System::Windows::Forms::RadioButton();
+            this->grpType            = gcnew System::Windows::Forms::GroupBox();
+            this->rbTypeTest         = gcnew System::Windows::Forms::RadioButton();
+            this->rbTypeMain         = gcnew System::Windows::Forms::RadioButton();
+            this->grpScheme          = gcnew System::Windows::Forms::GroupBox();
+            this->rbSchemeClassical  = gcnew System::Windows::Forms::RadioButton();
+            this->rbSchemeImproved   = gcnew System::Windows::Forms::RadioButton();
+            this->btnSolve           = gcnew System::Windows::Forms::Button();
+            this->btnConv            = gcnew System::Windows::Forms::Button();
+            this->btnWide            = gcnew System::Windows::Forms::Button();
 
-            this->tabMain = (gcnew System::Windows::Forms::TabPage());
-            this->scMain = (gcnew System::Windows::Forms::SplitContainer());
-            this->lblMainInfo = (gcnew System::Windows::Forms::Label());
-            this->scMainInner = (gcnew System::Windows::Forms::SplitContainer());
-            this->scMainCharts = (gcnew System::Windows::Forms::SplitContainer());
-            this->chMainSols = (gcnew System::Windows::Forms::DataVisualization::Charting::Chart());
-            this->chMainErr  = (gcnew System::Windows::Forms::DataVisualization::Charting::Chart());
-            this->dgvMain = (gcnew System::Windows::Forms::DataGridView());
+            this->tabs               = gcnew System::Windows::Forms::TabControl();
 
-            this->tabConv = (gcnew System::Windows::Forms::TabPage());
-            this->lblConvHelp = (gcnew System::Windows::Forms::Label());
-            this->scConv = (gcnew System::Windows::Forms::SplitContainer());
-            this->lblConvTest = (gcnew System::Windows::Forms::Label());
-            this->dgvConvTest = (gcnew System::Windows::Forms::DataGridView());
-            this->lblConvMain = (gcnew System::Windows::Forms::Label());
-            this->dgvConvMain = (gcnew System::Windows::Forms::DataGridView());
+            this->tabSolve           = gcnew System::Windows::Forms::TabPage();
+            this->scSolve            = gcnew System::Windows::Forms::SplitContainer();
+            this->lblInfo            = gcnew System::Windows::Forms::Label();
+            this->scSolveBody        = gcnew System::Windows::Forms::SplitContainer();
+            this->scCharts           = gcnew System::Windows::Forms::SplitContainer();
+            this->chSols             = gcnew System::Windows::Forms::DataVisualization::Charting::Chart();
+            this->chErr              = gcnew System::Windows::Forms::DataVisualization::Charting::Chart();
+            this->dgvSolve           = gcnew System::Windows::Forms::DataGridView();
 
-            this->tabWide = (gcnew System::Windows::Forms::TabPage());
-            this->lblWideHelp = (gcnew System::Windows::Forms::Label());
-            this->dgvWide = (gcnew System::Windows::Forms::DataGridView());
+            this->tabConv            = gcnew System::Windows::Forms::TabPage();
+            this->lblConvHelp        = gcnew System::Windows::Forms::Label();
+            this->dgvConv            = gcnew System::Windows::Forms::DataGridView();
+
+            this->tabWide            = gcnew System::Windows::Forms::TabPage();
+            this->lblWideHelp        = gcnew System::Windows::Forms::Label();
+            this->dgvWide            = gcnew System::Windows::Forms::DataGridView();
 
             this->panelTop->SuspendLayout();
             (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->numN))->BeginInit();
-            this->grpL->SuspendLayout();
-            this->grpR->SuspendLayout();
+            this->grpKind->SuspendLayout();
+            this->grpType->SuspendLayout();
+            this->grpScheme->SuspendLayout();
             this->tabs->SuspendLayout();
-            this->tabTest->SuspendLayout();
-            this->scTest->Panel1->SuspendLayout(); this->scTest->Panel2->SuspendLayout(); this->scTest->SuspendLayout();
-            this->scTestInner->Panel1->SuspendLayout(); this->scTestInner->Panel2->SuspendLayout(); this->scTestInner->SuspendLayout();
-            this->scTestCharts->Panel1->SuspendLayout(); this->scTestCharts->Panel2->SuspendLayout(); this->scTestCharts->SuspendLayout();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chTestSols))->BeginInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chTestErr))->BeginInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvTest))->BeginInit();
-
-            this->tabMain->SuspendLayout();
-            this->scMain->Panel1->SuspendLayout(); this->scMain->Panel2->SuspendLayout(); this->scMain->SuspendLayout();
-            this->scMainInner->Panel1->SuspendLayout(); this->scMainInner->Panel2->SuspendLayout(); this->scMainInner->SuspendLayout();
-            this->scMainCharts->Panel1->SuspendLayout(); this->scMainCharts->Panel2->SuspendLayout(); this->scMainCharts->SuspendLayout();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chMainSols))->BeginInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chMainErr))->BeginInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvMain))->BeginInit();
-
+            this->tabSolve->SuspendLayout();
+            this->scSolve->Panel1->SuspendLayout();  this->scSolve->Panel2->SuspendLayout();  this->scSolve->SuspendLayout();
+            this->scSolveBody->Panel1->SuspendLayout(); this->scSolveBody->Panel2->SuspendLayout(); this->scSolveBody->SuspendLayout();
+            this->scCharts->Panel1->SuspendLayout(); this->scCharts->Panel2->SuspendLayout(); this->scCharts->SuspendLayout();
+            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chSols))->BeginInit();
+            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chErr))->BeginInit();
+            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvSolve))->BeginInit();
             this->tabConv->SuspendLayout();
-            this->scConv->Panel1->SuspendLayout(); this->scConv->Panel2->SuspendLayout(); this->scConv->SuspendLayout();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvConvTest))->BeginInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvConvMain))->BeginInit();
-
+            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvConv))->BeginInit();
             this->tabWide->SuspendLayout();
             (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvWide))->BeginInit();
-
             this->SuspendLayout();
 
-            // panelTop
+            // ===== Верхняя панель =====
             this->panelTop->BackColor = System::Drawing::Color::FromArgb(245, 245, 248);
             this->panelTop->Controls->Add(this->btnWide);
             this->panelTop->Controls->Add(this->btnConv);
-            this->panelTop->Controls->Add(this->btnSolveMain);
-            this->panelTop->Controls->Add(this->btnSolveTest);
-            this->panelTop->Controls->Add(this->grpR);
-            this->panelTop->Controls->Add(this->grpL);
-            this->panelTop->Controls->Add(this->lblVar);
+            this->panelTop->Controls->Add(this->btnSolve);
+            this->panelTop->Controls->Add(this->grpScheme);
+            this->panelTop->Controls->Add(this->grpType);
+            this->panelTop->Controls->Add(this->grpKind);
             this->panelTop->Controls->Add(this->numN);
             this->panelTop->Controls->Add(this->lblN);
-            this->panelTop->Dock = System::Windows::Forms::DockStyle::Top;
+            this->panelTop->Controls->Add(this->lblVariant);
+            this->panelTop->Controls->Add(this->lblTitle);
+            this->panelTop->Dock     = System::Windows::Forms::DockStyle::Top;
             this->panelTop->Location = System::Drawing::Point(0, 0);
-            this->panelTop->Name = L"panelTop";
-            this->panelTop->Size = System::Drawing::Size(1280, 130);
+            this->panelTop->Name     = L"panelTop";
+            this->panelTop->Size     = System::Drawing::Size(1280, 170);
             this->panelTop->TabIndex = 0;
 
-            // lblN
+            // ---- lblTitle, lblVariant ----
+            this->lblTitle->Name      = L"lblTitle";
+            this->lblTitle->AutoSize  = true;
+            this->lblTitle->Font      = gcnew System::Drawing::Font(L"Segoe UI Semibold", 10);
+            this->lblTitle->ForeColor = System::Drawing::Color::FromArgb(20, 60, 130);
+            this->lblTitle->Location  = System::Drawing::Point(10, 8);
+            this->lblTitle->Text      = L"Лабораторная работа 3. Метод баланса. Вариант 7.";
+
+            this->lblVariant->Name     = L"lblVariant";
+            this->lblVariant->AutoSize = true;
+            this->lblVariant->Location = System::Drawing::Point(10, 32);
+            this->lblVariant->Text     =
+                L"ξ = π/4,  k₁ = √2·cos x,  k₂ = 2,  q₁ = x,  q₂ = x²,  f₁ = sin 2x,  f₂ = sin x,  "
+                L"μ₁ = μ₂ = 1,  γ₁ = 4, γ₂ = 3,  θ₁ = 2, θ₂ = 1.";
+
+            // ---- lblN, numN ----
+            this->lblN->Name     = L"lblN";
             this->lblN->AutoSize = true;
-            this->lblN->Location = System::Drawing::Point(10, 12);
-            this->lblN->Name = L"lblN";
-            this->lblN->Size = System::Drawing::Size(125, 15);
-            this->lblN->Text = L"Число разбиений n:";
+            this->lblN->Location = System::Drawing::Point(10, 60);
+            this->lblN->Text     = L"Число разбиений n:";
 
-            // numN
-            this->numN->Location = System::Drawing::Point(140, 10);
-            this->numN->Name = L"numN";
-            this->numN->Size = System::Drawing::Size(100, 23);
-            this->numN->Minimum = System::Decimal(gcnew cli::array<System::Int32>(4) {4, 0, 0, 0});
-            this->numN->Maximum = System::Decimal(gcnew cli::array<System::Int32>(4) {1000000, 0, 0, 0});
-            this->numN->Value   = System::Decimal(gcnew cli::array<System::Int32>(4) {100, 0, 0, 0});
+            this->numN->Location = System::Drawing::Point(140, 56);
+            this->numN->Name     = L"numN";
+            this->numN->Size     = System::Drawing::Size(100, 23);
+            this->numN->Minimum  = System::Decimal(2);
+            this->numN->Maximum  = System::Decimal(1000000);
+            this->numN->Value    = System::Decimal(100);
 
-            // lblVar
-            this->lblVar->AutoSize = true;
-            this->lblVar->ForeColor = System::Drawing::Color::FromArgb(20, 60, 130);
-            this->lblVar->Location = System::Drawing::Point(260, 12);
-            this->lblVar->Name = L"lblVar";
-            this->lblVar->Size = System::Drawing::Size(700, 15);
-            this->lblVar->Text = L"Вариант 1: ξ = 0.4, k₁=x+1, k₂=x, q₁=x, q₂=x², f₁=x, f₂=exp(-x), μ₁=0, μ₂=1";
+            // ---- grpKind: 1-я / 3-я краевая ----
+            this->grpKind->Controls->Add(this->rbKindThird);
+            this->grpKind->Controls->Add(this->rbKindFirst);
+            this->grpKind->Location = System::Drawing::Point(10, 90);
+            this->grpKind->Name     = L"grpKind";
+            this->grpKind->Size     = System::Drawing::Size(280, 70);
+            this->grpKind->TabStop  = false;
+            this->grpKind->Text     = L"Постановка задачи";
 
-            // grpL
-            this->grpL->Controls->Add(this->txtSigmaL);
-            this->grpL->Controls->Add(this->lblSigmaL);
-            this->grpL->Controls->Add(this->txtGammaL);
-            this->grpL->Controls->Add(this->lblGammaL);
-            this->grpL->Controls->Add(this->cmbBcL);
-            this->grpL->Controls->Add(this->lblTL);
-            this->grpL->Location = System::Drawing::Point(10, 38);
-            this->grpL->Name = L"grpL";
-            this->grpL->Size = System::Drawing::Size(400, 85);
-            this->grpL->TabStop = false;
-            this->grpL->Text = L"Левое граничное условие при x = 0";
+            this->rbKindFirst->AutoSize = true;
+            this->rbKindFirst->Checked  = true;
+            this->rbKindFirst->Location = System::Drawing::Point(15, 22);
+            this->rbKindFirst->Name     = L"rbKindFirst";
+            this->rbKindFirst->Text     = L"1-я краевая";
+            this->rbKindFirst->TabIndex = 0;
+            this->rbKindFirst->CheckedChanged +=
+                gcnew EventHandler(this, &MyForm::rbKind_CheckedChanged);
 
-            // lblTL
-            this->lblTL->AutoSize = true;
-            this->lblTL->Location = System::Drawing::Point(10, 25);
-            this->lblTL->Size = System::Drawing::Size(35, 15);
-            this->lblTL->Text = L"Тип:";
+            this->rbKindThird->AutoSize = true;
+            this->rbKindThird->Location = System::Drawing::Point(15, 44);
+            this->rbKindThird->Name     = L"rbKindThird";
+            this->rbKindThird->Text     = L"3-я краевая";
+            this->rbKindThird->TabIndex = 1;
+            this->rbKindThird->CheckedChanged +=
+                gcnew EventHandler(this, &MyForm::rbKind_CheckedChanged);
 
-            // cmbBcL
-            this->cmbBcL->DropDownStyle = System::Windows::Forms::ComboBoxStyle::DropDownList;
-            this->cmbBcL->FormattingEnabled = true;
-            this->cmbBcL->Items->AddRange(gcnew cli::array<System::Object^>(3) {
-                L"1-го рода:  u(0) = γ",
-                L"2-го рода:  −k(0)·u'(0) = γ",
-                L"3-го рода:  −k(0)·u'(0) + σ·u(0) = γ"
-            });
-            this->cmbBcL->Location = System::Drawing::Point(50, 22);
-            this->cmbBcL->Name = L"cmbBcL";
-            this->cmbBcL->Size = System::Drawing::Size(330, 23);
-            this->cmbBcL->SelectedIndex = 0;
-            this->cmbBcL->SelectedIndexChanged +=
-                gcnew System::EventHandler(this, &MyForm::cmbBcL_SelectedIndexChanged);
+            // ---- grpType: тестовая / основная ----
+            this->grpType->Controls->Add(this->rbTypeMain);
+            this->grpType->Controls->Add(this->rbTypeTest);
+            this->grpType->Location = System::Drawing::Point(300, 90);
+            this->grpType->Name     = L"grpType";
+            this->grpType->Size     = System::Drawing::Size(280, 70);
+            this->grpType->TabStop  = false;
+            this->grpType->Text     = L"Тип задачи";
 
-            // lblGammaL
-            this->lblGammaL->AutoSize = true;
-            this->lblGammaL->Location = System::Drawing::Point(10, 56);
-            this->lblGammaL->Size = System::Drawing::Size(15, 15);
-            this->lblGammaL->Text = L"γ:";
+            this->rbTypeTest->AutoSize = true;
+            this->rbTypeTest->Checked  = true;
+            this->rbTypeTest->Location = System::Drawing::Point(15, 22);
+            this->rbTypeTest->Name     = L"rbTypeTest";
+            this->rbTypeTest->Text     = L"Тестовая";
+            this->rbTypeTest->TabIndex = 0;
 
-            // txtGammaL
-            this->txtGammaL->Location = System::Drawing::Point(28, 53);
-            this->txtGammaL->Name = L"txtGammaL";
-            this->txtGammaL->Size = System::Drawing::Size(70, 23);
-            this->txtGammaL->Text = L"0";
+            this->rbTypeMain->AutoSize = true;
+            this->rbTypeMain->Location = System::Drawing::Point(15, 44);
+            this->rbTypeMain->Name     = L"rbTypeMain";
+            this->rbTypeMain->Text     = L"Основная";
+            this->rbTypeMain->TabIndex = 1;
 
-            // lblSigmaL
-            this->lblSigmaL->AutoSize = true;
-            this->lblSigmaL->Location = System::Drawing::Point(110, 56);
-            this->lblSigmaL->Size = System::Drawing::Size(15, 15);
-            this->lblSigmaL->Text = L"σ:";
+            // ---- grpScheme: классическая / улучшенная ----
+            this->grpScheme->Controls->Add(this->rbSchemeImproved);
+            this->grpScheme->Controls->Add(this->rbSchemeClassical);
+            this->grpScheme->Location = System::Drawing::Point(590, 90);
+            this->grpScheme->Name     = L"grpScheme";
+            this->grpScheme->Size     = System::Drawing::Size(320, 70);
+            this->grpScheme->TabStop  = false;
+            this->grpScheme->Text     = L"Схема аппроксимации ГУ (для 3-й краевой)";
 
-            // txtSigmaL
-            this->txtSigmaL->Location = System::Drawing::Point(128, 53);
-            this->txtSigmaL->Name = L"txtSigmaL";
-            this->txtSigmaL->Size = System::Drawing::Size(70, 23);
-            this->txtSigmaL->Text = L"1";
+            this->rbSchemeClassical->AutoSize = true;
+            this->rbSchemeClassical->Checked  = true;
+            this->rbSchemeClassical->Location = System::Drawing::Point(15, 22);
+            this->rbSchemeClassical->Name     = L"rbSchemeClassical";
+            this->rbSchemeClassical->Text     = L"Классическая";
 
-            // grpR
-            this->grpR->Controls->Add(this->txtSigmaR);
-            this->grpR->Controls->Add(this->lblSigmaR);
-            this->grpR->Controls->Add(this->txtGammaR);
-            this->grpR->Controls->Add(this->lblGammaR);
-            this->grpR->Controls->Add(this->cmbBcR);
-            this->grpR->Controls->Add(this->lblTR);
-            this->grpR->Location = System::Drawing::Point(420, 38);
-            this->grpR->Name = L"grpR";
-            this->grpR->Size = System::Drawing::Size(400, 85);
-            this->grpR->TabStop = false;
-            this->grpR->Text = L"Правое граничное условие при x = 1";
+            this->rbSchemeImproved->AutoSize  = true;
+            this->rbSchemeImproved->Location  = System::Drawing::Point(15, 44);
+            this->rbSchemeImproved->Name      = L"rbSchemeImproved";
+            this->rbSchemeImproved->Text      = L"Улучшенная";
 
-            // lblTR
-            this->lblTR->AutoSize = true;
-            this->lblTR->Location = System::Drawing::Point(10, 25);
-            this->lblTR->Size = System::Drawing::Size(35, 15);
-            this->lblTR->Text = L"Тип:";
+            // ---- Кнопки ----
+            this->btnSolve->Location = System::Drawing::Point(930, 92);
+            this->btnSolve->Name     = L"btnSolve";
+            this->btnSolve->Size     = System::Drawing::Size(160, 28);
+            this->btnSolve->Text     = L"Решить";
+            this->btnSolve->UseVisualStyleBackColor = true;
+            this->btnSolve->Click   += gcnew EventHandler(this, &MyForm::btnSolve_Click);
 
-            // cmbBcR
-            this->cmbBcR->DropDownStyle = System::Windows::Forms::ComboBoxStyle::DropDownList;
-            this->cmbBcR->FormattingEnabled = true;
-            this->cmbBcR->Items->AddRange(gcnew cli::array<System::Object^>(3) {
-                L"1-го рода:  u(1) = γ",
-                L"2-го рода:   k(1)·u'(1) = γ",
-                L"3-го рода:   k(1)·u'(1) + σ·u(1) = γ"
-            });
-            this->cmbBcR->Location = System::Drawing::Point(50, 22);
-            this->cmbBcR->Name = L"cmbBcR";
-            this->cmbBcR->Size = System::Drawing::Size(330, 23);
-            this->cmbBcR->SelectedIndex = 0;
-            this->cmbBcR->SelectedIndexChanged +=
-                gcnew System::EventHandler(this, &MyForm::cmbBcR_SelectedIndexChanged);
-
-            // lblGammaR
-            this->lblGammaR->AutoSize = true;
-            this->lblGammaR->Location = System::Drawing::Point(10, 56);
-            this->lblGammaR->Size = System::Drawing::Size(15, 15);
-            this->lblGammaR->Text = L"γ:";
-
-            // txtGammaR
-            this->txtGammaR->Location = System::Drawing::Point(28, 53);
-            this->txtGammaR->Name = L"txtGammaR";
-            this->txtGammaR->Size = System::Drawing::Size(70, 23);
-            this->txtGammaR->Text = L"1";
-
-            // lblSigmaR
-            this->lblSigmaR->AutoSize = true;
-            this->lblSigmaR->Location = System::Drawing::Point(110, 56);
-            this->lblSigmaR->Size = System::Drawing::Size(15, 15);
-            this->lblSigmaR->Text = L"σ:";
-
-            // txtSigmaR
-            this->txtSigmaR->Location = System::Drawing::Point(128, 53);
-            this->txtSigmaR->Name = L"txtSigmaR";
-            this->txtSigmaR->Size = System::Drawing::Size(70, 23);
-            this->txtSigmaR->Text = L"1";
-
-            // btnSolveTest
-            this->btnSolveTest->Location = System::Drawing::Point(840, 40);
-            this->btnSolveTest->Name = L"btnSolveTest";
-            this->btnSolveTest->Size = System::Drawing::Size(180, 30);
-            this->btnSolveTest->Text = L"Решить тестовую";
-            this->btnSolveTest->UseVisualStyleBackColor = true;
-            this->btnSolveTest->Click += gcnew System::EventHandler(this, &MyForm::btnSolveTest_Click);
-
-            // btnSolveMain
-            this->btnSolveMain->Location = System::Drawing::Point(1030, 40);
-            this->btnSolveMain->Name = L"btnSolveMain";
-            this->btnSolveMain->Size = System::Drawing::Size(180, 30);
-            this->btnSolveMain->Text = L"Решить основную";
-            this->btnSolveMain->UseVisualStyleBackColor = true;
-            this->btnSolveMain->Click += gcnew System::EventHandler(this, &MyForm::btnSolveMain_Click);
-
-            // btnConv
-            this->btnConv->Location = System::Drawing::Point(840, 76);
-            this->btnConv->Name = L"btnConv";
-            this->btnConv->Size = System::Drawing::Size(180, 30);
-            this->btnConv->Text = L"Проверка порядка";
+            this->btnConv->Location  = System::Drawing::Point(1100, 92);
+            this->btnConv->Name      = L"btnConv";
+            this->btnConv->Size      = System::Drawing::Size(160, 28);
+            this->btnConv->Text      = L"Проверка порядка";
             this->btnConv->UseVisualStyleBackColor = true;
-            this->btnConv->Click += gcnew System::EventHandler(this, &MyForm::btnConv_Click);
+            this->btnConv->Click    += gcnew EventHandler(this, &MyForm::btnConv_Click);
 
-            // btnWide
-            this->btnWide->Location = System::Drawing::Point(1030, 76);
-            this->btnWide->Name = L"btnWide";
-            this->btnWide->Size = System::Drawing::Size(180, 30);
-            this->btnWide->Text = L"Широкий диапазон n";
+            this->btnWide->Location  = System::Drawing::Point(930, 128);
+            this->btnWide->Name      = L"btnWide";
+            this->btnWide->Size      = System::Drawing::Size(330, 28);
+            this->btnWide->Text      = L"Широкий диапазон n";
             this->btnWide->UseVisualStyleBackColor = true;
-            this->btnWide->Click += gcnew System::EventHandler(this, &MyForm::btnWide_Click);
+            this->btnWide->Click    += gcnew EventHandler(this, &MyForm::btnWide_Click);
 
-            // tabs
-            this->tabs->Controls->Add(this->tabTest);
-            this->tabs->Controls->Add(this->tabMain);
+            // ===== TabControl =====
+            this->tabs->Controls->Add(this->tabSolve);
             this->tabs->Controls->Add(this->tabConv);
             this->tabs->Controls->Add(this->tabWide);
-            this->tabs->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->tabs->Location = System::Drawing::Point(0, 130);
-            this->tabs->Name = L"tabs";
+            this->tabs->Dock          = System::Windows::Forms::DockStyle::Fill;
+            this->tabs->Location      = System::Drawing::Point(0, 170);
+            this->tabs->Name          = L"tabs";
             this->tabs->SelectedIndex = 0;
-            this->tabs->Size = System::Drawing::Size(1280, 670);
+            this->tabs->Size          = System::Drawing::Size(1280, 630);
 
-            // ====== Вкладка 1: Тестовая ======
-            this->tabTest->Controls->Add(this->scTest);
-            this->tabTest->Location = System::Drawing::Point(4, 24);
-            this->tabTest->Name = L"tabTest";
-            this->tabTest->Padding = System::Windows::Forms::Padding(3);
-            this->tabTest->Size = System::Drawing::Size(1272, 642);
-            this->tabTest->Text = L"Тестовая задача";
-            this->tabTest->UseVisualStyleBackColor = true;
+            // ===== Вкладка «Решение» =====
+            this->tabSolve->Controls->Add(this->scSolve);
+            this->tabSolve->Location  = System::Drawing::Point(4, 24);
+            this->tabSolve->Name      = L"tabSolve";
+            this->tabSolve->Padding   = System::Windows::Forms::Padding(3);
+            this->tabSolve->Size      = System::Drawing::Size(1272, 602);
+            this->tabSolve->Text      = L"Решение";
+            this->tabSolve->UseVisualStyleBackColor = true;
 
-            this->scTest->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->scTest->Orientation = System::Windows::Forms::Orientation::Horizontal;
-            this->scTest->Panel1->Controls->Add(this->lblTestInfo);
-            this->scTest->Panel2->Controls->Add(this->scTestInner);
-            this->scTest->Size = System::Drawing::Size(1266, 636);
-            this->scTest->SplitterDistance = 90;
+            this->scSolve->Dock        = System::Windows::Forms::DockStyle::Fill;
+            this->scSolve->Orientation = System::Windows::Forms::Orientation::Horizontal;
+            this->scSolve->Panel1->Controls->Add(this->lblInfo);
+            this->scSolve->Panel2->Controls->Add(this->scSolveBody);
+            this->scSolve->Size        = System::Drawing::Size(1266, 596);
+            this->scSolve->SplitterDistance = 110;
 
-            this->lblTestInfo->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->lblTestInfo->Font = (gcnew System::Drawing::Font(L"Consolas", 9));
-            this->lblTestInfo->Text = L"Нажмите «Решить тестовую» для расчёта.";
-            this->lblTestInfo->TextAlign = System::Drawing::ContentAlignment::TopLeft;
+            this->lblInfo->Name        = L"lblInfo";
+            this->lblInfo->Dock        = System::Windows::Forms::DockStyle::Fill;
+            this->lblInfo->Font        = gcnew System::Drawing::Font(L"Consolas", 9);
+            this->lblInfo->Text        = L"Выберите конфигурацию и нажмите «Решить».";
+            this->lblInfo->TextAlign   = System::Drawing::ContentAlignment::TopLeft;
 
-            this->scTestInner->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->scTestInner->Orientation = System::Windows::Forms::Orientation::Vertical;
-            this->scTestInner->Panel1->Controls->Add(this->scTestCharts);
-            this->scTestInner->Panel2->Controls->Add(this->dgvTest);
+            this->scSolveBody->Dock        = System::Windows::Forms::DockStyle::Fill;
+            this->scSolveBody->Orientation = System::Windows::Forms::Orientation::Vertical;
+            this->scSolveBody->Panel1->Controls->Add(this->scCharts);
+            this->scSolveBody->Panel2->Controls->Add(this->dgvSolve);
 
-            this->scTestCharts->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->scTestCharts->Orientation = System::Windows::Forms::Orientation::Horizontal;
-            this->scTestCharts->Panel1->Controls->Add(this->chTestSols);
-            this->scTestCharts->Panel2->Controls->Add(this->chTestErr);
+            this->scCharts->Dock        = System::Windows::Forms::DockStyle::Fill;
+            this->scCharts->Orientation = System::Windows::Forms::Orientation::Horizontal;
+            this->scCharts->Panel1->Controls->Add(this->chSols);
+            this->scCharts->Panel2->Controls->Add(this->chErr);
 
-            this->caTestSols = gcnew System::Windows::Forms::DataVisualization::Charting::ChartArea();
-            this->caTestSols->Name = L"area";
-            this->chTestSols->ChartAreas->Add(this->caTestSols);
-            this->tiTestSols = gcnew System::Windows::Forms::DataVisualization::Charting::Title();
-            this->tiTestSols->Name = L"Title1";
-            this->tiTestSols->Text = L"u(x) аналит. и v(x) числен.";
-            this->chTestSols->Titles->Add(this->tiTestSols);
-            this->lgTestSols = gcnew System::Windows::Forms::DataVisualization::Charting::Legend();
-            this->lgTestSols->Name = L"legend";
-            this->chTestSols->Legends->Add(this->lgTestSols);
-            this->chTestSols->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->chTestSols->Name = L"chTestSols";
+            this->caSols = gcnew System::Windows::Forms::DataVisualization::Charting::ChartArea(); this->caSols->Name = L"area";
+            this->chSols->ChartAreas->Add(this->caSols);
+            this->tiSols = gcnew System::Windows::Forms::DataVisualization::Charting::Title();     this->tiSols->Name = L"t";   this->tiSols->Text = L"Решения";
+            this->chSols->Titles->Add(this->tiSols);
+            this->lgSols = gcnew System::Windows::Forms::DataVisualization::Charting::Legend();    this->lgSols->Name = L"l";
+            this->chSols->Legends->Add(this->lgSols);
+            this->chSols->Dock = System::Windows::Forms::DockStyle::Fill;
+            this->chSols->Name = L"chSols";
 
-            this->caTestErr = gcnew System::Windows::Forms::DataVisualization::Charting::ChartArea();
-            this->caTestErr->Name = L"area";
-            this->chTestErr->ChartAreas->Add(this->caTestErr);
-            this->tiTestErr = gcnew System::Windows::Forms::DataVisualization::Charting::Title();
-            this->tiTestErr->Name = L"Title1";
-            this->tiTestErr->Text = L"Погрешность u − v";
-            this->chTestErr->Titles->Add(this->tiTestErr);
-            this->lgTestErr = gcnew System::Windows::Forms::DataVisualization::Charting::Legend();
-            this->lgTestErr->Name = L"legend";
-            this->chTestErr->Legends->Add(this->lgTestErr);
-            this->chTestErr->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->chTestErr->Name = L"chTestErr";
+            this->caErr  = gcnew System::Windows::Forms::DataVisualization::Charting::ChartArea(); this->caErr->Name = L"area";
+            this->chErr->ChartAreas->Add(this->caErr);
+            this->tiErr  = gcnew System::Windows::Forms::DataVisualization::Charting::Title();     this->tiErr->Name = L"t";   this->tiErr->Text = L"Разность";
+            this->chErr->Titles->Add(this->tiErr);
+            this->lgErr  = gcnew System::Windows::Forms::DataVisualization::Charting::Legend();    this->lgErr->Name = L"l";
+            this->chErr->Legends->Add(this->lgErr);
+            this->chErr->Dock = System::Windows::Forms::DockStyle::Fill;
+            this->chErr->Name = L"chErr";
 
-            this->dgvTest->AllowUserToAddRows = false;
-            this->dgvTest->AllowUserToResizeRows = false;
-            this->dgvTest->ColumnHeadersHeightSizeMode =
-                System::Windows::Forms::DataGridViewColumnHeadersHeightSizeMode::AutoSize;
-            this->dgvTest->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->dgvTest->Name = L"dgvTest";
-            this->dgvTest->ReadOnly = true;
-            this->dgvTest->RowHeadersVisible = false;
+            this->dgvSolve->AllowUserToAddRows     = false;
+            this->dgvSolve->AllowUserToResizeRows  = false;
+            this->dgvSolve->ColumnHeadersHeightSizeMode = System::Windows::Forms::DataGridViewColumnHeadersHeightSizeMode::AutoSize;
+            this->dgvSolve->Dock                   = System::Windows::Forms::DockStyle::Fill;
+            this->dgvSolve->Name                   = L"dgvSolve";
+            this->dgvSolve->ReadOnly               = true;
+            this->dgvSolve->RowHeadersVisible      = false;
 
-            // ====== Вкладка 2: Основная ======
-            this->tabMain->Controls->Add(this->scMain);
-            this->tabMain->Location = System::Drawing::Point(4, 24);
-            this->tabMain->Name = L"tabMain";
-            this->tabMain->Padding = System::Windows::Forms::Padding(3);
-            this->tabMain->Size = System::Drawing::Size(1272, 642);
-            this->tabMain->Text = L"Основная задача";
-            this->tabMain->UseVisualStyleBackColor = true;
-
-            this->scMain->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->scMain->Orientation = System::Windows::Forms::Orientation::Horizontal;
-            this->scMain->Panel1->Controls->Add(this->lblMainInfo);
-            this->scMain->Panel2->Controls->Add(this->scMainInner);
-            this->scMain->SplitterDistance = 90;
-
-            this->lblMainInfo->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->lblMainInfo->Font = (gcnew System::Drawing::Font(L"Consolas", 9));
-            this->lblMainInfo->Text = L"Нажмите «Решить основную» для расчёта.";
-            this->lblMainInfo->TextAlign = System::Drawing::ContentAlignment::TopLeft;
-
-            this->scMainInner->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->scMainInner->Orientation = System::Windows::Forms::Orientation::Vertical;
-            this->scMainInner->Panel1->Controls->Add(this->scMainCharts);
-            this->scMainInner->Panel2->Controls->Add(this->dgvMain);
-
-            this->scMainCharts->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->scMainCharts->Orientation = System::Windows::Forms::Orientation::Horizontal;
-            this->scMainCharts->Panel1->Controls->Add(this->chMainSols);
-            this->scMainCharts->Panel2->Controls->Add(this->chMainErr);
-
-            this->caMainSols = gcnew System::Windows::Forms::DataVisualization::Charting::ChartArea();
-            this->caMainSols->Name = L"area";
-            this->chMainSols->ChartAreas->Add(this->caMainSols);
-            this->tiMainSols = gcnew System::Windows::Forms::DataVisualization::Charting::Title();
-            this->tiMainSols->Name = L"Title1";
-            this->tiMainSols->Text = L"v(x), n  и  v₂(x), 2n";
-            this->chMainSols->Titles->Add(this->tiMainSols);
-            this->lgMainSols = gcnew System::Windows::Forms::DataVisualization::Charting::Legend();
-            this->lgMainSols->Name = L"legend";
-            this->chMainSols->Legends->Add(this->lgMainSols);
-            this->chMainSols->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->chMainSols->Name = L"chMainSols";
-
-            this->caMainErr = gcnew System::Windows::Forms::DataVisualization::Charting::ChartArea();
-            this->caMainErr->Name = L"area";
-            this->chMainErr->ChartAreas->Add(this->caMainErr);
-            this->tiMainErr = gcnew System::Windows::Forms::DataVisualization::Charting::Title();
-            this->tiMainErr->Name = L"Title1";
-            this->tiMainErr->Text = L"Разность v − v₂";
-            this->chMainErr->Titles->Add(this->tiMainErr);
-            this->lgMainErr = gcnew System::Windows::Forms::DataVisualization::Charting::Legend();
-            this->lgMainErr->Name = L"legend";
-            this->chMainErr->Legends->Add(this->lgMainErr);
-            this->chMainErr->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->chMainErr->Name = L"chMainErr";
-
-            this->dgvMain->AllowUserToAddRows = false;
-            this->dgvMain->AllowUserToResizeRows = false;
-            this->dgvMain->ColumnHeadersHeightSizeMode =
-                System::Windows::Forms::DataGridViewColumnHeadersHeightSizeMode::AutoSize;
-            this->dgvMain->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->dgvMain->Name = L"dgvMain";
-            this->dgvMain->ReadOnly = true;
-            this->dgvMain->RowHeadersVisible = false;
-
-            // ====== Вкладка 3: Проверка порядка ======
-            this->tabConv->Controls->Add(this->scConv);
+            // ===== Вкладка «Проверка порядка» =====
+            this->tabConv->Controls->Add(this->dgvConv);
             this->tabConv->Controls->Add(this->lblConvHelp);
-            this->tabConv->Location = System::Drawing::Point(4, 24);
-            this->tabConv->Name = L"tabConv";
-            this->tabConv->Size = System::Drawing::Size(1272, 642);
-            this->tabConv->Text = L"Проверка порядка";
+            this->tabConv->Location  = System::Drawing::Point(4, 24);
+            this->tabConv->Name      = L"tabConv";
+            this->tabConv->Size      = System::Drawing::Size(1272, 602);
+            this->tabConv->Text      = L"Проверка порядка";
             this->tabConv->UseVisualStyleBackColor = true;
 
-            this->lblConvHelp->Dock = System::Windows::Forms::DockStyle::Top;
-            this->lblConvHelp->Height = 40;
-            this->lblConvHelp->Padding = System::Windows::Forms::Padding(8, 4, 4, 4);
-            this->lblConvHelp->Text = L"Тестовая: ε₁ = max|u−v|.   Основная: ε₂ = max|v − v₂|.\r\n"
-                                      L"При удвоении n отношение ε(n)/ε(2n) ≈ 4 (порядок 2).";
+            this->lblConvHelp->Name    = L"lblConvHelp";
+            this->lblConvHelp->Dock    = System::Windows::Forms::DockStyle::Top;
+            this->lblConvHelp->Height  = 60;
+            this->lblConvHelp->Padding = System::Windows::Forms::Padding(8, 6, 4, 4);
+            this->lblConvHelp->Font    = gcnew System::Drawing::Font(L"Consolas", 9);
+            this->lblConvHelp->Text    =
+                L"Тестовая задача:   ε₁ = max|u(xᵢ) − v(xᵢ)|   (точное и численное)\r\n"
+                L"Основная задача:   ε₂ = max|v(xᵢ) − v₂(x₂ᵢ)| (правило Рунге, сетки n и 2n)\r\n"
+                L"При удвоении n отношение ε(n)/ε(2n) ≈ 4 для схемы 2-го порядка и ≈ 2 для 1-го.";
 
-            this->scConv->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->scConv->Orientation = System::Windows::Forms::Orientation::Vertical;
+            this->dgvConv->AllowUserToAddRows    = false;
+            this->dgvConv->Dock                  = System::Windows::Forms::DockStyle::Fill;
+            this->dgvConv->Name                  = L"dgvConv";
+            this->dgvConv->ReadOnly              = true;
+            this->dgvConv->RowHeadersVisible     = false;
 
-            this->scConv->Panel1->Controls->Add(this->dgvConvTest);
-            this->scConv->Panel1->Controls->Add(this->lblConvTest);
-            this->lblConvTest->Dock = System::Windows::Forms::DockStyle::Top;
-            this->lblConvTest->Height = 22;
-            this->lblConvTest->Padding = System::Windows::Forms::Padding(4);
-            this->lblConvTest->Font = (gcnew System::Drawing::Font(L"Segoe UI", 9, System::Drawing::FontStyle::Bold));
-            this->lblConvTest->Text = L"Тестовая задача (ε₁)";
-            this->dgvConvTest->AllowUserToAddRows = false;
-            this->dgvConvTest->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->dgvConvTest->Name = L"dgvConvTest";
-            this->dgvConvTest->ReadOnly = true;
-            this->dgvConvTest->RowHeadersVisible = false;
-
-            this->scConv->Panel2->Controls->Add(this->dgvConvMain);
-            this->scConv->Panel2->Controls->Add(this->lblConvMain);
-            this->lblConvMain->Dock = System::Windows::Forms::DockStyle::Top;
-            this->lblConvMain->Height = 22;
-            this->lblConvMain->Padding = System::Windows::Forms::Padding(4);
-            this->lblConvMain->Font = (gcnew System::Drawing::Font(L"Segoe UI", 9, System::Drawing::FontStyle::Bold));
-            this->lblConvMain->Text = L"Основная задача (ε₂, удвоение шага)";
-            this->dgvConvMain->AllowUserToAddRows = false;
-            this->dgvConvMain->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->dgvConvMain->Name = L"dgvConvMain";
-            this->dgvConvMain->ReadOnly = true;
-            this->dgvConvMain->RowHeadersVisible = false;
-
-            // ====== Вкладка 4: Широкий диапазон ======
+            // ===== Вкладка «Широкий диапазон n» =====
             this->tabWide->Controls->Add(this->dgvWide);
             this->tabWide->Controls->Add(this->lblWideHelp);
-            this->tabWide->Location = System::Drawing::Point(4, 24);
-            this->tabWide->Name = L"tabWide";
-            this->tabWide->Size = System::Drawing::Size(1272, 642);
-            this->tabWide->Text = L"Широкий диапазон n";
+            this->tabWide->Location  = System::Drawing::Point(4, 24);
+            this->tabWide->Name      = L"tabWide";
+            this->tabWide->Size      = System::Drawing::Size(1272, 602);
+            this->tabWide->Text      = L"Широкий диапазон n";
             this->tabWide->UseVisualStyleBackColor = true;
 
-            this->lblWideHelp->Dock = System::Windows::Forms::DockStyle::Top;
-            this->lblWideHelp->Height = 40;
-            this->lblWideHelp->Padding = System::Windows::Forms::Padding(8, 4, 4, 4);
-            this->lblWideHelp->Text = L"Таблица 6: погрешности при n от 10 до 1 000 000.\r\n"
-                                      L"Колонки −lg(ε₁), −lg(ε₂) для графиков сходимости.";
+            this->lblWideHelp->Name    = L"lblWideHelp";
+            this->lblWideHelp->Dock    = System::Windows::Forms::DockStyle::Top;
+            this->lblWideHelp->Height  = 60;
+            this->lblWideHelp->Padding = System::Windows::Forms::Padding(8, 6, 4, 4);
+            this->lblWideHelp->Font    = gcnew System::Drawing::Font(L"Consolas", 9);
+            this->lblWideHelp->Text    =
+                L"Таблица 6 бланка отчёта: ε₁ для тестовой и ε₂ для основной задач\r\n"
+                L"при n от 10 до 1 000 000. Колонки −lg ε₁ и −lg ε₂ — для построения\r\n"
+                L"графика сходимости в Excel / Origin.";
 
-            this->dgvWide->AllowUserToAddRows = false;
-            this->dgvWide->Dock = System::Windows::Forms::DockStyle::Fill;
-            this->dgvWide->Name = L"dgvWide";
-            this->dgvWide->ReadOnly = true;
-            this->dgvWide->RowHeadersVisible = false;
+            this->dgvWide->AllowUserToAddRows    = false;
+            this->dgvWide->Dock                  = System::Windows::Forms::DockStyle::Fill;
+            this->dgvWide->Name                  = L"dgvWide";
+            this->dgvWide->ReadOnly              = true;
+            this->dgvWide->RowHeadersVisible     = false;
 
-            // ====== Форма ======
+            // ===== Форма =====
             this->AutoScaleDimensions = System::Drawing::SizeF(7, 15);
-            this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-            this->ClientSize = System::Drawing::Size(1280, 800);
+            this->AutoScaleMode       = System::Windows::Forms::AutoScaleMode::Font;
+            this->ClientSize          = System::Drawing::Size(1280, 800);
             this->Controls->Add(this->tabs);
             this->Controls->Add(this->panelTop);
-            this->MinimumSize = System::Drawing::Size(1024, 600);
-            this->Name = L"MyForm";
-            this->StartPosition = System::Windows::Forms::FormStartPosition::CenterScreen;
-            this->Text = L"Лабораторная 2 — Метод баланса (вариант 1)";
+            this->MinimumSize         = System::Drawing::Size(1024, 600);
+            this->Name                = L"MyForm";
+            this->StartPosition       = System::Windows::Forms::FormStartPosition::CenterScreen;
+            this->Text                = L"Лабораторная 3 — Метод баланса (вариант 7)";
 
-            this->panelTop->ResumeLayout(false);
-            this->panelTop->PerformLayout();
+            this->panelTop->ResumeLayout(false); this->panelTop->PerformLayout();
             (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->numN))->EndInit();
-            this->grpL->ResumeLayout(false); this->grpL->PerformLayout();
-            this->grpR->ResumeLayout(false); this->grpR->PerformLayout();
+            this->grpKind->ResumeLayout(false);   this->grpKind->PerformLayout();
+            this->grpType->ResumeLayout(false);   this->grpType->PerformLayout();
+            this->grpScheme->ResumeLayout(false); this->grpScheme->PerformLayout();
             this->tabs->ResumeLayout(false);
-
-            this->scTestCharts->Panel1->ResumeLayout(false); this->scTestCharts->Panel2->ResumeLayout(false); this->scTestCharts->ResumeLayout(false);
-            this->scTestInner->Panel1->ResumeLayout(false); this->scTestInner->Panel2->ResumeLayout(false); this->scTestInner->ResumeLayout(false);
-            this->scTest->Panel1->ResumeLayout(false); this->scTest->Panel2->ResumeLayout(false); this->scTest->ResumeLayout(false);
-            this->tabTest->ResumeLayout(false);
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chTestSols))->EndInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chTestErr))->EndInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvTest))->EndInit();
-
-            this->scMainCharts->Panel1->ResumeLayout(false); this->scMainCharts->Panel2->ResumeLayout(false); this->scMainCharts->ResumeLayout(false);
-            this->scMainInner->Panel1->ResumeLayout(false); this->scMainInner->Panel2->ResumeLayout(false); this->scMainInner->ResumeLayout(false);
-            this->scMain->Panel1->ResumeLayout(false); this->scMain->Panel2->ResumeLayout(false); this->scMain->ResumeLayout(false);
-            this->tabMain->ResumeLayout(false);
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chMainSols))->EndInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chMainErr))->EndInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvMain))->EndInit();
-
-            this->scConv->Panel1->ResumeLayout(false); this->scConv->Panel2->ResumeLayout(false); this->scConv->ResumeLayout(false);
+            this->scCharts->Panel1->ResumeLayout(false); this->scCharts->Panel2->ResumeLayout(false); this->scCharts->ResumeLayout(false);
+            this->scSolveBody->Panel1->ResumeLayout(false); this->scSolveBody->Panel2->ResumeLayout(false); this->scSolveBody->ResumeLayout(false);
+            this->scSolve->Panel1->ResumeLayout(false); this->scSolve->Panel2->ResumeLayout(false); this->scSolve->ResumeLayout(false);
+            this->tabSolve->ResumeLayout(false);
+            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chSols))->EndInit();
+            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->chErr))->EndInit();
+            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvSolve))->EndInit();
             this->tabConv->ResumeLayout(false);
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvConvTest))->EndInit();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvConvMain))->EndInit();
-
+            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvConv))->EndInit();
             this->tabWide->ResumeLayout(false);
             (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvWide))->EndInit();
-
             this->ResumeLayout(false);
         }
+
 #pragma endregion
 
-    // ===== Объявления обработчиков (реализация в MyForm.cpp) =====
-    private:
-        System::Void cmbBcL_SelectedIndexChanged(System::Object^ sender, System::EventArgs^ e);
-        System::Void cmbBcR_SelectedIndexChanged(System::Object^ sender, System::EventArgs^ e);
-        System::Void btnSolveTest_Click(System::Object^ sender, System::EventArgs^ e);
-        System::Void btnSolveMain_Click(System::Object^ sender, System::EventArgs^ e);
-        System::Void btnConv_Click(System::Object^ sender, System::EventArgs^ e);
-        System::Void btnWide_Click(System::Object^ sender, System::EventArgs^ e);
+        // ---- Helpers (реализация — в MyForm.cpp) ----
+        // Возвращают int-коды, чтобы не тянуть нативные типы в заголовок формы:
+        //   Kind:   0 = 1-я краевая, 1 = 3-я краевая
+        //   Type:   0 = тестовая,    1 = основная
+        //   Scheme: 0 = классическая, 1 = улучшенная
+        void UpdateSchemeEnabled();
+        int  CurrentKind();
+        int  CurrentType();
+        int  CurrentScheme();
+        System::String^ ConfigSuffix();
+
+        // ---- Обработчики ----
+        System::Void rbKind_CheckedChanged(System::Object^ sender, System::EventArgs^ e);
+        System::Void btnSolve_Click       (System::Object^ sender, System::EventArgs^ e);
+        System::Void btnConv_Click        (System::Object^ sender, System::EventArgs^ e);
+        System::Void btnWide_Click        (System::Object^ sender, System::EventArgs^ e);
     };
 }
