@@ -72,7 +72,6 @@ namespace Lab3 {
 
         System::Windows::Forms::Button^        btnSolve;
         System::Windows::Forms::Button^        btnConv;
-        System::Windows::Forms::Button^        btnWide;
 
         // ---- Вкладки ----
         System::Windows::Forms::TabControl^    tabs;
@@ -99,9 +98,6 @@ namespace Lab3 {
         System::Windows::Forms::DataGridView^  dgvConv;
 
         // Вкладка «Широкий диапазон n»
-        System::Windows::Forms::TabPage^       tabWide;
-        System::Windows::Forms::Label^         lblWideHelp;
-        System::Windows::Forms::DataGridView^  dgvWide;
 
 #pragma region Designer-generated layout
 
@@ -125,7 +121,6 @@ namespace Lab3 {
             this->rbSchemeImproved   = gcnew System::Windows::Forms::RadioButton();
             this->btnSolve           = gcnew System::Windows::Forms::Button();
             this->btnConv            = gcnew System::Windows::Forms::Button();
-            this->btnWide            = gcnew System::Windows::Forms::Button();
 
             this->tabs               = gcnew System::Windows::Forms::TabControl();
 
@@ -142,9 +137,6 @@ namespace Lab3 {
             this->lblConvHelp        = gcnew System::Windows::Forms::Label();
             this->dgvConv            = gcnew System::Windows::Forms::DataGridView();
 
-            this->tabWide            = gcnew System::Windows::Forms::TabPage();
-            this->lblWideHelp        = gcnew System::Windows::Forms::Label();
-            this->dgvWide            = gcnew System::Windows::Forms::DataGridView();
 
             this->panelTop->SuspendLayout();
             (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->numN))->BeginInit();
@@ -161,13 +153,10 @@ namespace Lab3 {
             (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvSolve))->BeginInit();
             this->tabConv->SuspendLayout();
             (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvConv))->BeginInit();
-            this->tabWide->SuspendLayout();
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvWide))->BeginInit();
             this->SuspendLayout();
 
             // ===== Верхняя панель =====
             this->panelTop->BackColor = System::Drawing::Color::FromArgb(245, 245, 248);
-            this->panelTop->Controls->Add(this->btnWide);
             this->panelTop->Controls->Add(this->btnConv);
             this->panelTop->Controls->Add(this->btnSolve);
             this->panelTop->Controls->Add(this->grpScheme);
@@ -294,17 +283,9 @@ namespace Lab3 {
             this->btnConv->UseVisualStyleBackColor = true;
             this->btnConv->Click    += gcnew EventHandler(this, &MyForm::btnConv_Click);
 
-            this->btnWide->Location  = System::Drawing::Point(930, 128);
-            this->btnWide->Name      = L"btnWide";
-            this->btnWide->Size      = System::Drawing::Size(330, 28);
-            this->btnWide->Text      = L"Широкий диапазон n";
-            this->btnWide->UseVisualStyleBackColor = true;
-            this->btnWide->Click    += gcnew EventHandler(this, &MyForm::btnWide_Click);
-
             // ===== TabControl =====
             this->tabs->Controls->Add(this->tabSolve);
             this->tabs->Controls->Add(this->tabConv);
-            this->tabs->Controls->Add(this->tabWide);
             this->tabs->Dock          = System::Windows::Forms::DockStyle::Fill;
             this->tabs->Location      = System::Drawing::Point(0, 170);
             this->tabs->Name          = L"tabs";
@@ -394,30 +375,6 @@ namespace Lab3 {
             this->dgvConv->ReadOnly              = true;
             this->dgvConv->RowHeadersVisible     = false;
 
-            // ===== Вкладка «Широкий диапазон n» =====
-            this->tabWide->Controls->Add(this->dgvWide);
-            this->tabWide->Controls->Add(this->lblWideHelp);
-            this->tabWide->Location  = System::Drawing::Point(4, 24);
-            this->tabWide->Name      = L"tabWide";
-            this->tabWide->Size      = System::Drawing::Size(1272, 602);
-            this->tabWide->Text      = L"Широкий диапазон n";
-            this->tabWide->UseVisualStyleBackColor = true;
-
-            this->lblWideHelp->Name    = L"lblWideHelp";
-            this->lblWideHelp->Dock    = System::Windows::Forms::DockStyle::Top;
-            this->lblWideHelp->Height  = 60;
-            this->lblWideHelp->Padding = System::Windows::Forms::Padding(8, 6, 4, 4);
-            this->lblWideHelp->Font    = gcnew System::Drawing::Font(L"Consolas", 9);
-            this->lblWideHelp->Text    =
-                L"Таблица 6 бланка отчёта: ε₁ для тестовой и ε₂ для основной задач\r\n"
-                L"при n от 10 до 1 000 000. Колонки −lg ε₁ и −lg ε₂ — для построения\r\n"
-                L"графика сходимости в Excel / Origin.";
-
-            this->dgvWide->AllowUserToAddRows    = false;
-            this->dgvWide->Dock                  = System::Windows::Forms::DockStyle::Fill;
-            this->dgvWide->Name                  = L"dgvWide";
-            this->dgvWide->ReadOnly              = true;
-            this->dgvWide->RowHeadersVisible     = false;
 
             // ===== Форма =====
             this->AutoScaleDimensions = System::Drawing::SizeF(7, 15);
@@ -445,8 +402,6 @@ namespace Lab3 {
             (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvSolve))->EndInit();
             this->tabConv->ResumeLayout(false);
             (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvConv))->EndInit();
-            this->tabWide->ResumeLayout(false);
-            (cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->dgvWide))->EndInit();
             this->ResumeLayout(false);
         }
 
@@ -467,6 +422,5 @@ namespace Lab3 {
         System::Void rbKind_CheckedChanged(System::Object^ sender, System::EventArgs^ e);
         System::Void btnSolve_Click       (System::Object^ sender, System::EventArgs^ e);
         System::Void btnConv_Click        (System::Object^ sender, System::EventArgs^ e);
-        System::Void btnWide_Click        (System::Object^ sender, System::EventArgs^ e);
     };
 }
