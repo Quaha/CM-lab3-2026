@@ -365,9 +365,9 @@ namespace Lab3 {
             this->lblConvHelp->Padding = System::Windows::Forms::Padding(8, 6, 4, 4);
             this->lblConvHelp->Font    = gcnew System::Drawing::Font(L"Consolas", 9);
             this->lblConvHelp->Text    =
-                L"Тестовая задача:   ε₁ = max|u(xᵢ) − v(xᵢ)|   (точное и численное)\r\n"
-                L"Основная задача:   ε₂ = max|v(xᵢ) − v₂(x₂ᵢ)| (правило Рунге, сетки n и 2n)\r\n"
-                L"При удвоении n отношение ε(n)/ε(2n) ≈ 4 для схемы 2-го порядка и ≈ 2 для 1-го.";
+                L"Тестовая ε₁ = max|u(xᵢ) − v(xᵢ)| (точное и численное); основная ε₂ = max|v(xᵢ) − v₂(x₂ᵢ)|.\r\n"
+                L"При удвоении n отношение ε(n)/ε(2n) ≈ 4 для схемы 2-го порядка и ≈ 2 для 1-го.\r\n"
+                L"Ряд n удваивается от 10 до значения в поле «Число разбиений n» (минимум 320).";
 
             this->dgvConv->AllowUserToAddRows    = false;
             this->dgvConv->Dock                  = System::Windows::Forms::DockStyle::Fill;
