@@ -22,7 +22,7 @@ static String^ stdToCli(const std::string& s) {
 }
 
 static String^ FmtD(double v) {
-    std::ostringstream oss; oss.precision(7); oss << v;
+    std::ostringstream oss; oss.precision(12); oss << v;
     return stdToCli(oss.str());
 }
 
@@ -143,7 +143,7 @@ namespace Lab3 {
         for (size_t k = 0; k < idx.size(); ++k) {
             int i = idx[k];
             dgv->Rows->Add(i.ToString(),
-                FmtFixed(x[i], 6),
+                FmtFixed(x[i], 10),
                 FmtD(y1[i]),
                 FmtD(y2[i]),
                 FmtSci(err[i]));

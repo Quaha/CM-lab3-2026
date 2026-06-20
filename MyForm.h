@@ -197,7 +197,7 @@ namespace Lab3 {
             this->numN->Name     = L"numN";
             this->numN->Size     = System::Drawing::Size(100, 23);
             this->numN->Minimum  = System::Decimal(2);
-            this->numN->Maximum  = System::Decimal(1000000);
+            this->numN->Maximum  = System::Decimal(10000000);
             this->numN->Value    = System::Decimal(100);
 
             // ---- grpKind: 1-я / 3-я краевая ----
